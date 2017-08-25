@@ -1,0 +1,12 @@
+https://s-media-cache-ak0.pinimg.com/originals/fc/f0/69/fcf0693653f50a9db3d0ee7ec305c1d8.png
+https://habrastorage.org/getpro/habr/post_images/e8d/ff0/239/e8dff023919e1671b1910ce50dbb29c8.jpg
+http://www.unixstickers.com/image/data/stickers/golang/Golang%20mashup.sh.png
+http://www.golangprojects.com/img/golangprojects_com_goper340.png
+https://raw.githubusercontent.com/raydac/mvn-golang/master/assets/mvngolang.png
+https://raw.githubusercontent.com/parnurzeal/gorequest/gh-pages/images/Gopher_GoRequest_400x300.jpg
+http://res.cloudinary.com/spintop/image/upload/v1496690435/golang_ita6p3.png
+https://udemy-images.udemy.com/course/750x422/745306_a792.jpg
+https://raw.githubusercontent.com/michiwend/gomusicbrainz/master/misc/gopherbrainz.png
+https://raw.githubusercontent.com/gin-gonic/logo/master/color.png
+https://media.licdn.com/mpr/mpr/AAEAAQAAAAAAAAzlAAAAJDYzNzc1MjkyLWQzNDctNDE5Yy1hYTM5LWFkM2I1ZjY2NmYyYQ.png
+https://logmatic.io/wp-content/uploads/2017/04/golang1-300x293.png
