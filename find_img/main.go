@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"image"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -94,6 +95,7 @@ func download(chanelForUrls chan string, waitGroup *sync.WaitGroup, dirname stri
 }
 
 func downloadImg(urlsArray []string, dirname string, numberOfG string) {
+
 	numberOfGoroutines, err := strconv.Atoi(numberOfG)
 	checkError(err)
 
@@ -104,19 +106,36 @@ func downloadImg(urlsArray []string, dirname string, numberOfG string) {
 	for i := 0; i < numberOfGoroutines; i++ {
 		waitGroup.Add(1)
 		go download(chanelForUrls, waitGroup, dirname, chanelForIndex)
-
 	}
 
 	for index, i := range urlsArray {
 		chanelForUrls <- i
 		chanelForIndex <- index
-
 	}
 
 	close(chanelForUrls)
 	close(chanelForIndex)
-
 	waitGroup.Wait()
+}
+
+func resizeThisFormat(err error, zIndex uint, img image.Image, dir, fileName, fileFormat string, file *os.File) {
+
+	if err == nil {
+		m := resize.Resize(zIndex, 0, img, resize.Lanczos3)
+		file.Close()
+		err := os.Remove(dir + "/" + fileName)
+		checkError(err)
+
+		out, err := os.Create(dir + "/" + fileName)
+		checkError(err)
+
+		defer out.Close()
+		if fileFormat == ".jpg" || fileFormat == ".jpeg" {
+			jpeg.Encode(out, m, nil)
+		} else if fileFormat == ".png" {
+			png.Encode(out, m)
+		}
+	}
 }
 
 func resizing(chanel chan string, waitGroup *sync.WaitGroup, dir, size string) {
@@ -141,45 +160,18 @@ func resizing(chanel chan string, waitGroup *sync.WaitGroup, dir, size string) {
 			checkError(err)
 
 			if fileFormat == ".jpg" || fileFormat == ".jpeg" {
-
 				img, err := jpeg.Decode(file)
-				if err == nil {
-
-					m := resize.Resize(zIndex, 0, img, resize.Lanczos3)
-					file.Close()
-					err = os.Remove(dir + "/" + fileName)
-					checkError(err)
-
-					out, err := os.Create(dir + "/" + fileName)
-					checkError(err)
-
-					defer out.Close()
-					jpeg.Encode(out, m, nil)
-				}
-
+				resizeThisFormat(err, zIndex, img, dir, fileName, fileFormat, file)
 			} else if fileFormat == ".png" {
-
 				img, err := png.Decode(file)
-				if err == nil {
-
-					m := resize.Resize(zIndex, 0, img, resize.Lanczos3)
-					file.Close()
-					err = os.Remove(dir + "/" + fileName)
-					checkError(err)
-
-					out, err := os.Create(dir + "/" + fileName)
-					checkError(err)
-
-					defer out.Close()
-					png.Encode(out, m)
-				}
-
+				resizeThisFormat(err, zIndex, img, dir, fileName, fileFormat, file)
 			}
 		}
 	}
 }
 
 func resizeImg(dir, size, numberOfG string) {
+
 	numberOfGoroutines, err := strconv.Atoi(numberOfG)
 	checkError(err)
 	chanel := make(chan string)
@@ -194,7 +186,6 @@ func resizeImg(dir, size, numberOfG string) {
 	}
 	close(chanel)
 	waitGroup.Wait()
-
 }
 
 func main() {
