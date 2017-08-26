@@ -155,7 +155,7 @@ func resizeThisFormat(err error, zIndex uint, img image.Image, dir, fileName, fi
 	} else {
 		file_blanc, _ := os.Create(dir + "/" + indexInFile + "_" + fileName)
 		io.Copy(file_blanc, file)
-		file.Close()
+		file_blanc.Close()
 	}
 }
 
