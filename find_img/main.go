@@ -69,7 +69,7 @@ func parseFileName(url string) string {
 }
 
 func download(chanelForUrls chan string, waitGroup *sync.WaitGroup,
-	dirname string, chanelForIndex chan int, size, numberOfGoroutinesForResize string) {
+	dirname string, chanelForIndex chan int, size string) {
 
 	defer waitGroup.Done()
 
@@ -112,7 +112,7 @@ func download(chanelForUrls chan string, waitGroup *sync.WaitGroup,
 
 }
 
-func downloadImg(urlsArray []string, dirname string, numberOfG, size, numberOfGoroutinesForResize string) {
+func downloadImg(urlsArray []string, dirname string, numberOfG, size string) {
 
 	numberOfGoroutines, err := strconv.Atoi(numberOfG)
 	checkError(err)
@@ -123,7 +123,7 @@ func downloadImg(urlsArray []string, dirname string, numberOfG, size, numberOfGo
 
 	for i := 0; i < numberOfGoroutines; i++ {
 		waitGroup.Add(1)
-		go download(chanelForUrls, waitGroup, dirname, chanelForIndex, size, numberOfGoroutinesForResize)
+		go download(chanelForUrls, waitGroup, dirname, chanelForIndex, size)
 	}
 
 	for index, i := range urlsArray {
@@ -165,10 +165,10 @@ func main() {
 	dirname := os.Args[2]
 	size := os.Args[3]
 	numberOfGoroutinesForDownload := os.Args[4]
-	numberOfGoroutinesForResize := os.Args[5]
+	//numberOfGoroutinesForResize := os.Args[5]
 
 	os.MkdirAll(dirname, os.ModePerm)
 
 	urlsArray := initArrayOfUrl(fileWithUrls)
-	downloadImg(urlsArray, dirname, numberOfGoroutinesForDownload, size, numberOfGoroutinesForResize)
+	downloadImg(urlsArray, dirname, numberOfGoroutinesForDownload, size)
 }
