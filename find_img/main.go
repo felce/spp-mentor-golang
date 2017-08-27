@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -16,6 +17,13 @@ import (
 
 	"github.com/nfnt/resize"
 )
+
+type AboutImg struct {
+	fileName    string
+	indexInPath string
+	format      string
+	resp        io.ReadCloser
+}
 
 func checkError(err error) {
 
@@ -68,80 +76,104 @@ func parseFileName(url string) string {
 	return imgName
 }
 
-func download(chanelForUrls chan string, waitGroup *sync.WaitGroup,
-	dirname string, chanelForIndex chan int, size string) {
+func download(waitGroup *sync.WaitGroup, dirname string, chanelForIndex chan int, size string,
+	chanelForFiles chan string, chanelForResizeFile chan<- AboutImg) {
 
-	defer waitGroup.Done()
+	for url := range chanelForFiles {
 
-	for url := range chanelForUrls {
+		var options AboutImg
+
+		defer waitGroup.Done()
 
 		indexInFile := strconv.Itoa(<-chanelForIndex)
 
-		if url != "" {
-			response, err := http.Get(string(url))
-			checkError(err)
+		response, err := http.Get(string(url))
+		checkError(err)
 
-			defer response.Body.Close()
+		defer response.Body.Close()
 
-			newFileName := parseFileName(url)
-			var fileFormat string
-			fileNameLen := len(newFileName)
+		newFileName := parseFileName(url)
+		var fileFormat string
+		fileNameLen := len(newFileName)
 
-			sizeOfNewImg, err := strconv.Atoi(size)
-			checkError(err)
-
-			var zIndex uint = uint(sizeOfNewImg)
-
-			for i := fileNameLen - 1; i > 0; i-- {
-				if byte(newFileName[i]) == '.' {
-					fileFormat = newFileName[i:fileNameLen]
-					break
-				}
-			}
-
-			if fileFormat == ".jpg" || fileFormat == ".jpeg" {
-				img, err := jpeg.Decode(response.Body)
-				resizeThisFormat(err, zIndex, img, dirname, newFileName, fileFormat, response.Body, indexInFile)
-			} else if fileFormat == ".png" {
-				img, err := png.Decode(response.Body)
-				resizeThisFormat(err, zIndex, img, dirname, newFileName, fileFormat, response.Body, indexInFile)
+		checkError(err)
+		for i := fileNameLen - 1; i > 0; i-- {
+			if byte(newFileName[i]) == '.' {
+				fileFormat = newFileName[i:fileNameLen]
+				break
 			}
 		}
 
-	}
+		options.fileName = newFileName
+		options.indexInPath = indexInFile
+		options.format = fileFormat
+		options.resp = response.Body
 
+		fmt.Println("finish download", indexInFile)
+
+		chanelForResizeFile <- options
+	}
 }
 
-func downloadImg(urlsArray []string, dirname string, numberOfG, size string) {
+func downloadImg(urlsArray []string, dirname string, numberOfG, size string, chanelForResizeFile chan<- AboutImg) {
 
 	numberOfGoroutines, err := strconv.Atoi(numberOfG)
 	checkError(err)
 
-	chanelForUrls := make(chan string)
 	chanelForIndex := make(chan int)
 	waitGroup := new(sync.WaitGroup)
 
+	chanelForFiles := make(chan string)
+
 	for i := 0; i < numberOfGoroutines; i++ {
+
 		waitGroup.Add(1)
-		go download(chanelForUrls, waitGroup, dirname, chanelForIndex, size)
+
+		go download(waitGroup, dirname, chanelForIndex, size, chanelForFiles, chanelForResizeFile)
+
 	}
 
-	for index, i := range urlsArray {
-		chanelForUrls <- i
+	for index, url := range urlsArray {
+		chanelForFiles <- url
 		chanelForIndex <- index
 	}
 
-	close(chanelForUrls)
 	close(chanelForIndex)
+	defer close(chanelForResizeFile)
+	defer close(chanelForFiles)
+
 	waitGroup.Wait()
 }
 
-func resizeThisFormat(err error, zIndex uint, img image.Image, dir, fileName, fileFormat string, file io.ReadCloser, indexInFile string) {
+func resizeImg(size, dirname string, chanelForResizeFile <-chan AboutImg, waitGroup *sync.WaitGroup) {
+
+	defer waitGroup.Done()
+	for options := range chanelForResizeFile {
+		sizeOfNewImg, err := strconv.Atoi(size)
+		checkError(err)
+		var zIndex uint = uint(sizeOfNewImg)
+
+		newFileName := options.fileName
+		fileFormat := options.format
+		resp := options.resp
+		indexInFile := options.indexInPath
+		fmt.Println("start resize ", indexInFile)
+
+		if fileFormat == ".jpg" || fileFormat == ".jpeg" {
+			img, err := jpeg.Decode(resp)
+			resizeThisFormat(err, zIndex, img, dirname, newFileName, fileFormat, resp, indexInFile)
+		} else if fileFormat == ".png" {
+			img, err := png.Decode(resp)
+			resizeThisFormat(err, zIndex, img, dirname, newFileName, fileFormat, resp, indexInFile)
+		}
+	}
+}
+
+func resizeThisFormat(err error, zIndex uint, img image.Image, dir, fileName, fileFormat string,
+	file io.ReadCloser, indexInFile string) {
 
 	if err == nil {
 		m := resize.Resize(zIndex, 0, img, resize.Lanczos3)
-		file.Close()
-		os.Remove(dir + "/" + fileName)
 
 		out, err := os.Create(dir + "/" + indexInFile + "_" + fileName)
 		checkError(err)
@@ -153,10 +185,23 @@ func resizeThisFormat(err error, zIndex uint, img image.Image, dir, fileName, fi
 			png.Encode(out, m)
 		}
 	} else {
-		file_blanc, _ := os.Create(dir + "/" + indexInFile + "_" + fileName)
-		io.Copy(file_blanc, file)
-		file_blanc.Close()
+		empty_file, _ := os.Create(dir + "/" + indexInFile + "_" + fileName)
+		io.Copy(empty_file, file)
+		empty_file.Close()
 	}
+}
+
+func startResize(chanelForResizeFile chan AboutImg, size, dirname string, numberOfGoroutinesForResize int) {
+
+	waitGroup := new(sync.WaitGroup)
+
+	for i := 0; i < numberOfGoroutinesForResize; i++ {
+
+		waitGroup.Add(1)
+		go resizeImg(size, dirname, chanelForResizeFile, waitGroup)
+	}
+
+	waitGroup.Wait()
 }
 
 func main() {
@@ -165,10 +210,17 @@ func main() {
 	dirname := os.Args[2]
 	size := os.Args[3]
 	numberOfGoroutinesForDownload := os.Args[4]
-	//numberOfGoroutinesForResize := os.Args[5]
+	numberOfGoroutinesForResize, err := strconv.Atoi(os.Args[5])
+	checkError(err)
 
 	os.MkdirAll(dirname, os.ModePerm)
 
 	urlsArray := initArrayOfUrl(fileWithUrls)
-	downloadImg(urlsArray, dirname, numberOfGoroutinesForDownload, size)
+
+	chanelForResizeFile := make(chan AboutImg)
+
+	go downloadImg(urlsArray, dirname, numberOfGoroutinesForDownload, size, chanelForResizeFile)
+	// defer close(chanelForResizeFile)
+	startResize(chanelForResizeFile, size, dirname, numberOfGoroutinesForResize)
+
 }
