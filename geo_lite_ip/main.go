@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/go-martini/martini"
 	"github.com/nranchev/go-libGeoIP"
 )
 
-func getIP(w http.ResponseWriter, r *http.Request) {
-
+func getIP(w http.ResponseWriter, r *http.Request, wg *sync.WaitGroup, gi *libgeo.GeoIP) {
+	defer wg.Done()
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 		ip = ipProxy
@@ -18,21 +19,13 @@ func getIP(w http.ResponseWriter, r *http.Request) {
 		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 
-	ipInfo(ip, w)
+	ipInfo(ip, w, gi)
 }
 
-func ipInfo(ipAddr string, w http.ResponseWriter) {
+func ipInfo(ipAddr string, w http.ResponseWriter, gi *libgeo.GeoIP) {
 
 	var country, countryCode, city, region, postalCode string
 	var latitude, longitude float32
-
-	dbFile := "GeoLiteCity.dat"
-
-	gi, err := libgeo.Load(dbFile)
-	if err != nil {
-		fmt.Printf("Error: %s\n", err.Error())
-		return
-	}
 
 	loc := gi.GetLocationByIP(ipAddr)
 	if loc != nil {
@@ -57,8 +50,13 @@ func ipInfo(ipAddr string, w http.ResponseWriter) {
 
 func main() {
 
-	m := martini.Classic()
+	dbFile := "GeoLiteCity.dat"
 
+	gi, _ := libgeo.Load(dbFile)
+
+	m := martini.Classic()
+	m.Map(gi)
 	m.Get("/", getIP)
 	m.Run()
+
 }
