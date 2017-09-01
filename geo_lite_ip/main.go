@@ -1,26 +1,32 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"net"
+	"net/http"
 
+	"github.com/go-martini/martini"
 	"github.com/nranchev/go-libGeoIP"
 )
 
-// ./geo_lite_ip  GeoLiteCity.dat 93.35.186.197
+func getIP(w http.ResponseWriter, r *http.Request) {
 
-func main() {
-	var country, countryCode, city, region, postalCode string
-	var latitude, longitude float32
-	flag.Parse()
-
-	if flag.NArg() < 2 {
-		fmt.Printf("usage: main DBFILE IPADDRESS\n")
-		return
+	var ip string
+	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
+		ip = ipProxy
+	} else {
+		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 
-	dbFile := flag.Arg(0)
-	ipAddr := flag.Arg(1)
+	ipInfo(ip, w)
+}
+
+func ipInfo(ipAddr string, w http.ResponseWriter) {
+
+	var country, countryCode, city, region, postalCode string
+	var latitude, longitude float32
+
+	dbFile := "GeoLiteCity.dat"
 
 	gi, err := libgeo.Load(dbFile)
 	if err != nil {
@@ -37,15 +43,22 @@ func main() {
 		postalCode = loc.PostalCode
 		latitude = loc.Latitude
 		longitude = loc.Longitude
+		fmt.Fprintf(w, "IP: %s \n\n", ipAddr)
 
-		fmt.Println("Country: ", country)
-		fmt.Println("Code: ", countryCode)
-		fmt.Println("City: ", city)
-		fmt.Println("Region: ", region)
-		fmt.Println("Postal Code: ", postalCode)
-		fmt.Println("Latitude: ", latitude)
-		fmt.Println("Longitude: ", longitude)
+		fmt.Fprintf(w, "Country: %s \n", country)
+		fmt.Fprintf(w, "Code:  %s \n", countryCode)
+		fmt.Fprintf(w, "City:  %s \n", city)
+		fmt.Fprintf(w, "Region:  %s \n", region)
+		fmt.Fprintf(w, "Postal Code:  %s \n", postalCode)
+		fmt.Fprintf(w, "Latitude:  %f \n", latitude)
+		fmt.Fprintf(w, "Longitude:  %f \n", longitude)
 	}
 }
 
-//  GeoLiteCity.dat 81.2.69.142
+func main() {
+
+	m := martini.Classic()
+
+	m.Get("/", getIP)
+	m.Run()
+}
