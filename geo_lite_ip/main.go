@@ -1,17 +1,27 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
 
 	"github.com/go-martini/martini"
 	"github.com/nranchev/go-libGeoIP"
 )
 
-func getIP(w http.ResponseWriter, r *http.Request, wg *sync.WaitGroup, gi *libgeo.GeoIP) {
-	defer wg.Done()
+type ClientInfo struct {
+	Ip          string
+	Country     string
+	CountryCode string
+	City        string
+	Region      string
+	PostalCode  string
+	Latitude    float32
+	Longitude   float32
+}
+
+func getIP(w http.ResponseWriter, r *http.Request, gi *libgeo.GeoIP) {
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 		ip = ipProxy
@@ -27,6 +37,8 @@ func ipInfo(ipAddr string, w http.ResponseWriter, gi *libgeo.GeoIP) {
 	var country, countryCode, city, region, postalCode string
 	var latitude, longitude float32
 
+	fmt.Fprintf(w, "test 13.44 02.09.2017 \n")
+
 	loc := gi.GetLocationByIP(ipAddr)
 	if loc != nil {
 		country = loc.CountryName
@@ -36,15 +48,25 @@ func ipInfo(ipAddr string, w http.ResponseWriter, gi *libgeo.GeoIP) {
 		postalCode = loc.PostalCode
 		latitude = loc.Latitude
 		longitude = loc.Longitude
-		fmt.Fprintf(w, "IP: %s \n\n", ipAddr)
 
-		fmt.Fprintf(w, "Country: %s \n", country)
-		fmt.Fprintf(w, "Code:  %s \n", countryCode)
-		fmt.Fprintf(w, "City:  %s \n", city)
-		fmt.Fprintf(w, "Region:  %s \n", region)
-		fmt.Fprintf(w, "Postal Code:  %s \n", postalCode)
-		fmt.Fprintf(w, "Latitude:  %f \n", latitude)
-		fmt.Fprintf(w, "Longitude:  %f \n", longitude)
+		clientImfo := &ClientInfo{Ip: ipAddr, Country: country,
+			CountryCode: countryCode, City: city,
+			Region: region, PostalCode: postalCode, Latitude: latitude, Longitude: longitude}
+		rankingsJson, _ := json.MarshalIndent(clientImfo, "", "  ")
+
+		fmt.Fprintf(w, "%s \n\n", string(rankingsJson))
+
+		// fmt.Fprintf(w, "IP: %s \n\n", ipAddr)
+
+		// fmt.Fprintf(w, "IP: %s \n\n", ipAddr)
+
+		// fmt.Fprintf(w, "Country: %s \n", country)
+		// fmt.Fprintf(w, "Code:  %s \n", countryCode)
+		// fmt.Fprintf(w, "City:  %s \n", city)
+		// fmt.Fprintf(w, "Region:  %s \n", region)
+		// fmt.Fprintf(w, "Postal Code:  %s \n", postalCode)
+		// fmt.Fprintf(w, "Latitude:  %f \n", latitude)
+		// fmt.Fprintf(w, "Longitude:  %f \n", longitude)
 	}
 }
 
@@ -58,5 +80,4 @@ func main() {
 	m.Map(gi)
 	m.Get("/", getIP)
 	m.Run()
-
 }
