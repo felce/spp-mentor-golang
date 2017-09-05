@@ -22,10 +22,6 @@ type ClientInfo struct {
 	Longitude   float32
 }
 
-func New() *ClientInfo {
-	return &ClientInfo{}
-}
-
 func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, mutex sync.Mutex) {
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
@@ -34,7 +30,7 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, mutex syn
 		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 
-	info := New()
+	info := ClientInfo{}
 
 	info.ipInfo(ip, w, data, mutex)
 }
@@ -45,17 +41,19 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data 
 	var latitude, longitude float32
 
 	mutex.Lock()
-	defer mutex.Unlock()
 
 	loc := data.GetLocationByIP(ipAddr)
 	if loc != nil {
-		country = loc.CountryName
-		countryCode = loc.CountryCode
-		city = loc.City
-		region = loc.Region
-		postalCode = loc.PostalCode
-		latitude = loc.Latitude
-		longitude = loc.Longitude
+		func() {
+			defer mutex.Unlock()
+			country = loc.CountryName
+			countryCode = loc.CountryCode
+			city = loc.City
+			region = loc.Region
+			postalCode = loc.PostalCode
+			latitude = loc.Latitude
+			longitude = loc.Longitude
+		}()
 
 		clientInfo.Ip = ipAddr
 		clientInfo.Country = country
