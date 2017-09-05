@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/go-martini/martini"
 	"github.com/nranchev/go-libGeoIP"
 )
 
 type ClientInfo struct {
+	sync.Mutex
 	Ip          string
 	Country     string
 	CountryCode string
@@ -21,6 +23,10 @@ type ClientInfo struct {
 	Longitude   float32
 }
 
+func New() *ClientInfo {
+	return &ClientInfo{}
+}
+
 func getIP(w http.ResponseWriter, r *http.Request, gi *libgeo.GeoIP) {
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
@@ -29,15 +35,17 @@ func getIP(w http.ResponseWriter, r *http.Request, gi *libgeo.GeoIP) {
 		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 
-	ipInfo(ip, w, gi)
+	info := New()
+
+	info.ipInfo(ip, w, gi)
 }
 
-func ipInfo(ipAddr string, w http.ResponseWriter, gi *libgeo.GeoIP) {
+func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, gi *libgeo.GeoIP) {
 
 	var country, countryCode, city, region, postalCode string
 	var latitude, longitude float32
 
-	fmt.Fprintf(w, "test 13.44 02.09.2017 \n")
+	clientInfo.Lock()
 
 	loc := gi.GetLocationByIP(ipAddr)
 	if loc != nil {
@@ -49,24 +57,20 @@ func ipInfo(ipAddr string, w http.ResponseWriter, gi *libgeo.GeoIP) {
 		latitude = loc.Latitude
 		longitude = loc.Longitude
 
-		clientImfo := &ClientInfo{Ip: ipAddr, Country: country,
-			CountryCode: countryCode, City: city,
-			Region: region, PostalCode: postalCode, Latitude: latitude, Longitude: longitude}
-		rankingsJson, _ := json.MarshalIndent(clientImfo, "", "  ")
+		clientInfo.Ip = ipAddr
+		clientInfo.Country = country
+		clientInfo.CountryCode = countryCode
+		clientInfo.City = city
+		clientInfo.Region = region
+		clientInfo.PostalCode = postalCode
+		clientInfo.Latitude = latitude
+		clientInfo.Longitude = longitude
+
+		clientInfo.Unlock()
+		rankingsJson, _ := json.MarshalIndent(clientInfo, "", "  ")
 
 		fmt.Fprintf(w, "%s \n\n", string(rankingsJson))
 
-		// fmt.Fprintf(w, "IP: %s \n\n", ipAddr)
-
-		// fmt.Fprintf(w, "IP: %s \n\n", ipAddr)
-
-		// fmt.Fprintf(w, "Country: %s \n", country)
-		// fmt.Fprintf(w, "Code:  %s \n", countryCode)
-		// fmt.Fprintf(w, "City:  %s \n", city)
-		// fmt.Fprintf(w, "Region:  %s \n", region)
-		// fmt.Fprintf(w, "Postal Code:  %s \n", postalCode)
-		// fmt.Fprintf(w, "Latitude:  %f \n", latitude)
-		// fmt.Fprintf(w, "Longitude:  %f \n", longitude)
 	}
 }
 
