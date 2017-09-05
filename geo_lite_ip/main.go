@@ -11,8 +11,12 @@ import (
 	"github.com/nranchev/go-libGeoIP"
 )
 
-type ClientInfo struct {
+type Data struct {
 	sync.Mutex
+	GeoIpLite *libgeo.GeoIP
+}
+
+type ClientInfo struct {
 	Ip          string
 	Country     string
 	CountryCode string
@@ -27,7 +31,7 @@ func New() *ClientInfo {
 	return &ClientInfo{}
 }
 
-func getIP(w http.ResponseWriter, r *http.Request, gi *libgeo.GeoIP) {
+func getIP(w http.ResponseWriter, r *http.Request, data Data) {
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 		ip = ipProxy
@@ -37,17 +41,17 @@ func getIP(w http.ResponseWriter, r *http.Request, gi *libgeo.GeoIP) {
 
 	info := New()
 
-	info.ipInfo(ip, w, gi)
+	info.ipInfo(ip, w, data)
 }
 
-func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, gi *libgeo.GeoIP) {
+func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data Data) {
 
 	var country, countryCode, city, region, postalCode string
 	var latitude, longitude float32
 
-	clientInfo.Lock()
+	data.Lock()
 
-	loc := gi.GetLocationByIP(ipAddr)
+	loc := data.GeoIpLite.GetLocationByIP(ipAddr)
 	if loc != nil {
 		country = loc.CountryName
 		countryCode = loc.CountryCode
@@ -56,6 +60,8 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, gi *l
 		postalCode = loc.PostalCode
 		latitude = loc.Latitude
 		longitude = loc.Longitude
+
+		data.Unlock()
 
 		clientInfo.Ip = ipAddr
 		clientInfo.Country = country
@@ -66,22 +72,21 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, gi *l
 		clientInfo.Latitude = latitude
 		clientInfo.Longitude = longitude
 
-		clientInfo.Unlock()
 		rankingsJson, _ := json.MarshalIndent(clientInfo, "", "  ")
 
 		fmt.Fprintf(w, "%s \n\n", string(rankingsJson))
-
 	}
 }
 
 func main() {
-
+	data := Data{}
 	dbFile := "GeoLiteCity.dat"
 
-	gi, _ := libgeo.Load(dbFile)
+	data.GeoIpLite, _ = libgeo.Load(dbFile)
 
 	m := martini.Classic()
-	m.Map(gi)
+	m.Map(data)
+
 	m.Get("/", getIP)
 	m.Run()
 }
