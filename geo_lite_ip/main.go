@@ -50,6 +50,7 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data 
 	var latitude, longitude float32
 
 	data.Lock()
+	defer data.Unlock()
 
 	loc := data.GeoIpLite.GetLocationByIP(ipAddr)
 	if loc != nil {
@@ -60,8 +61,6 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data 
 		postalCode = loc.PostalCode
 		latitude = loc.Latitude
 		longitude = loc.Longitude
-
-		defer data.Unlock()
 
 		clientInfo.Ip = ipAddr
 		clientInfo.Country = country
