@@ -11,8 +11,6 @@ import (
 	"github.com/nranchev/go-libGeoIP"
 )
 
-var mutex sync.Mutex
-
 type ClientInfo struct {
 	Ip          string
 	Country     string
@@ -28,7 +26,7 @@ func New() *ClientInfo {
 	return &ClientInfo{}
 }
 
-func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
+func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, mutex sync.Mutex) {
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 		ip = ipProxy
@@ -38,10 +36,10 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 
 	info := New()
 
-	info.ipInfo(ip, w, data)
+	info.ipInfo(ip, w, data, mutex)
 }
 
-func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data *libgeo.GeoIP) {
+func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data *libgeo.GeoIP, mutex sync.Mutex) {
 
 	var country, countryCode, city, region, postalCode string
 	var latitude, longitude float32
@@ -76,12 +74,13 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data 
 
 func main() {
 
+	var mutex sync.Mutex
 	dbFile := "GeoLiteCity.dat"
-
 	data, _ := libgeo.Load(dbFile)
 
 	m := martini.Classic()
 	m.Map(data)
+	m.Map(mutex)
 
 	m.Get("/", getIP)
 	m.Run()
