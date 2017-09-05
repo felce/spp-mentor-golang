@@ -11,10 +11,7 @@ import (
 	"github.com/nranchev/go-libGeoIP"
 )
 
-type Data struct {
-	sync.Mutex
-	GeoIpLite *libgeo.GeoIP
-}
+var mutex sync.Mutex
 
 type ClientInfo struct {
 	Ip          string
@@ -31,7 +28,7 @@ func New() *ClientInfo {
 	return &ClientInfo{}
 }
 
-func getIP(w http.ResponseWriter, r *http.Request, data Data) {
+func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 		ip = ipProxy
@@ -44,15 +41,15 @@ func getIP(w http.ResponseWriter, r *http.Request, data Data) {
 	info.ipInfo(ip, w, data)
 }
 
-func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data Data) {
+func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data *libgeo.GeoIP) {
 
 	var country, countryCode, city, region, postalCode string
 	var latitude, longitude float32
 
-	data.Lock()
-	defer data.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
-	loc := data.GeoIpLite.GetLocationByIP(ipAddr)
+	loc := data.GetLocationByIP(ipAddr)
 	if loc != nil {
 		country = loc.CountryName
 		countryCode = loc.CountryCode
@@ -78,10 +75,10 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data 
 }
 
 func main() {
-	data := Data{}
+
 	dbFile := "GeoLiteCity.dat"
 
-	data.GeoIpLite, _ = libgeo.Load(dbFile)
+	data, _ := libgeo.Load(dbFile)
 
 	m := martini.Classic()
 	m.Map(data)
