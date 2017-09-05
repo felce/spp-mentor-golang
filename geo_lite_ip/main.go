@@ -61,7 +61,7 @@ func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data 
 		latitude = loc.Latitude
 		longitude = loc.Longitude
 
-		data.Unlock()
+		defer data.Unlock()
 
 		clientInfo.Ip = ipAddr
 		clientInfo.Country = country
