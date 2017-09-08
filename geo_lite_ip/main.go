@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -26,6 +25,8 @@ type ClientInfo struct {
 
 func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 
+	w.Header().Set("Content-Type", "application/json")
+
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 		ip = ipProxy
@@ -33,17 +34,24 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 
-	clientInfo := ipInfo(ip, data)
+	clientInfo, statusCode := ipInfo(ip, data)
 
-	if clientInfo != nil {
-		rankingsJson, _ := json.MarshalIndent(clientInfo, "", "  ")
-		fmt.Fprintf(w, "%s \n\n", string(rankingsJson))
+	if statusCode == 200 {
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("completed 200 - ok \n"))
+		infoJson, _ := json.MarshalIndent(clientInfo, "", "\t")
+		w.Write(infoJson)
 	} else {
-		fmt.Fprintf(w, "%s \n\n", "IP not found!")
+
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("completed 404 - ip not found\n"))
+		infoJson, _ := json.MarshalIndent(clientInfo, "", "\t")
+		w.Write(infoJson)
 	}
 }
 
-func ipInfo(ipAddr string, data *libgeo.GeoIP) *ClientInfo {
+func ipInfo(ipAddr string, data *libgeo.GeoIP) (*ClientInfo, int) {
 
 	clientInfo := &ClientInfo{}
 	clientInfo.Ip = ipAddr
@@ -60,9 +68,9 @@ func ipInfo(ipAddr string, data *libgeo.GeoIP) *ClientInfo {
 		clientInfo.PostalCode = loc.PostalCode
 		clientInfo.Latitude = loc.Latitude
 		clientInfo.Longitude = loc.Longitude
-		return clientInfo
+		return clientInfo, 200
 	}
-	return nil
+	return clientInfo, 404
 }
 
 func main() {
