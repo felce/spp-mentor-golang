@@ -25,6 +25,7 @@ type ClientInfo struct {
 }
 
 func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
+
 	var ip string
 	if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 		ip = ipProxy
@@ -32,46 +33,36 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 
-	info := ClientInfo{}
+	clientInfo := ipInfo(ip, data)
 
-	info.ipInfo(ip, w, data)
+	if clientInfo != nil {
+		rankingsJson, _ := json.MarshalIndent(clientInfo, "", "  ")
+		fmt.Fprintf(w, "%s \n\n", string(rankingsJson))
+	} else {
+		fmt.Fprintf(w, "%s \n\n", "IP not found!")
+	}
 }
 
-func (clientInfo *ClientInfo) ipInfo(ipAddr string, w http.ResponseWriter, data *libgeo.GeoIP) {
+func ipInfo(ipAddr string, data *libgeo.GeoIP) *ClientInfo {
 
-	var country, countryCode, city, region, postalCode string
-	var latitude, longitude float32
-
+	clientInfo := &ClientInfo{}
+	clientInfo.Ip = ipAddr
 	mutex.Lock()
+	defer mutex.Unlock()
 
 	loc := data.GetLocationByIP(ipAddr)
 	if loc != nil {
-		func() {
-			defer mutex.Unlock()
-			country = loc.CountryName
-			countryCode = loc.CountryCode
-			city = loc.City
-			region = loc.Region
-			postalCode = loc.PostalCode
-			latitude = loc.Latitude
-			longitude = loc.Longitude
-		}()
 
-		clientInfo.Ip = ipAddr
-		clientInfo.Country = country
-		clientInfo.CountryCode = countryCode
-		clientInfo.City = city
-		clientInfo.Region = region
-		clientInfo.PostalCode = postalCode
-		clientInfo.Latitude = latitude
-		clientInfo.Longitude = longitude
-
-		rankingsJson, _ := json.MarshalIndent(clientInfo, "", "  ")
-
-		fmt.Fprintf(w, "%s \n\n", string(rankingsJson))
-	} else {
-		mutex.Unlock()
+		clientInfo.Country = loc.CountryName
+		clientInfo.CountryCode = loc.CountryCode
+		clientInfo.City = loc.City
+		clientInfo.Region = loc.Region
+		clientInfo.PostalCode = loc.PostalCode
+		clientInfo.Latitude = loc.Latitude
+		clientInfo.Longitude = loc.Longitude
+		return clientInfo
 	}
+	return nil
 }
 
 func main() {
