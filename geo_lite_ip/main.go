@@ -57,7 +57,7 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 	} else {
 
 		w.WriteHeader(http.StatusNotFound)
-		errInfo := &ErrorInfo{ip, "geo info for ip not found"}
+		errInfo := &ErrorInfo{Ip: ip, Error: "geo info for ip not found"}
 		infoJson, _ = json.MarshalIndent(errInfo, "", "\t")
 	}
 	w.Write(infoJson)
@@ -72,8 +72,9 @@ func ipInfo(ipAddr string, data *libgeo.GeoIP) *ClientInfo {
 	if loc == nil {
 		return nil
 	}
-	clientInfo := &ClientInfo{ipAddr, loc.CountryName, loc.CountryCode,
-		loc.City, loc.Region, loc.PostalCode, loc.Latitude, loc.Longitude}
+	clientInfo := &ClientInfo{Ip: ipAddr, Country: loc.CountryName, CountryCode: loc.CountryCode,
+		City: loc.City, Region: loc.Region, PostalCode: loc.PostalCode,
+		Latitude: loc.Latitude, Longitude: loc.Longitude}
 
 	return clientInfo
 }
