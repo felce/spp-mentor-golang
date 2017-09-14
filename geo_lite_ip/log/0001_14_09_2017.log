@@ -1,0 +1,93 @@
+2017/09/14 22:51:38 
+request body:
+ GET /?ip=135.233.22.55 HTTP/1.1
+Host: localhost:3000
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
+Accept-Encoding: gzip, deflate, br
+Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4,uk;q=0.2
+Cache-Control: max-age=0
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36
+
+ 
+query string:
+ {
+	"ip": [
+		"135.233.22.55"
+	]
+} 
+response:
+ {
+	"Ip": "135.233.22.55",
+	"Country": "United States",
+	"CountryCode": "US",
+	"City": "Naperville",
+	"Region": "IL",
+	"PostalCode": "60563",
+	"Latitude": 41.803207,
+	"Longitude": -88.1341
+} 
+
+2017/09/14 22:55:09 
+request body:
+ GET /?ip=135.233.22.55 HTTP/1.1
+Host: localhost:3000
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
+Accept-Encoding: gzip, deflate, br
+Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4,uk;q=0.2
+Cache-Control: max-age=0
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36
+
+ 
+query string:
+ {
+	"ip": [
+		"135.233.22.55"
+	]
+} 
+response:
+ {
+	"Ip": "135.233.22.55",
+	"Country": "United States",
+	"CountryCode": "US",
+	"City": "Naperville",
+	"Region": "IL",
+	"PostalCode": "60563",
+	"Latitude": 41.803207,
+	"Longitude": -88.1341
+} 
+
+2017/09/14 23:57:37 
+request body:
+ GET /?ip=135.233.22.55 HTTP/1.1
+Host: localhost:3000
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
+Accept-Encoding: gzip, deflate, br
+Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4,uk;q=0.2
+Cache-Control: max-age=0
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36
+
+ 
+query string:
+ {
+	"ip": [
+		"135.233.22.55"
+	]
+} 
+response:
+ {
+	"Ip": "135.233.22.55",
+	"Country": "United States",
+	"CountryCode": "US",
+	"City": "Naperville",
+	"Region": "IL",
+	"PostalCode": "60563",
+	"Latitude": 41.803207,
+	"Longitude": -88.1341
+} 
+
