@@ -4,18 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-martini/martini"
 	"github.com/nranchev/go-libGeoIP"
-	// log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var mutex sync.Mutex
@@ -38,18 +37,19 @@ type ClientInfo struct {
 
 type LogInfo struct {
 	Req         string
-	QueryString string
-	Resp        string
+	QueryString map[string][]string
+	Info        *ClientInfo
+	Error       *ErrorInfo
 }
 
-func checkError(err error) {
+func checkError(err error, log *logrus.Logger) {
 
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
+func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, log *logrus.Logger) {
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -65,7 +65,7 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 			ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 		}
 	}
-	clientInfo := ipInfo(ip, data)
+	clientInfo, errInfo := ipInfo(ip, data)
 
 	if clientInfo != nil {
 
@@ -74,26 +74,29 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP) {
 	} else {
 
 		w.WriteHeader(http.StatusNotFound)
-		errInfo := &ErrorInfo{Ip: ip, Error: "geo info for ip not found"}
+
 		infoJson, _ = json.MarshalIndent(errInfo, "", "\t")
 	}
 	w.Write(infoJson)
 
 	requestBody := requestInfo(r)
-	q, _ := json.MarshalIndent(qs, "", "\t")
-	logInfo := &LogInfo{Req: requestBody, QueryString: string(q[:]), Resp: string(infoJson[:])}
+	logInfo := &LogInfo{Req: requestBody, QueryString: qs, Info: clientInfo, Error: errInfo}
 
-	logginToFile(logInfo)
+	logginToFile(logInfo, log)
 }
 
 func requestInfo(r *http.Request) string {
-
-	requestDump, _ := httputil.DumpRequest(r, true)
-
-	return string(requestDump)
+	var request []string
+	for name, headers := range r.Header {
+		name = strings.ToLower(name)
+		for _, h := range headers {
+			request = append(request, fmt.Sprintf("%v: %v", name, h))
+		}
+	}
+	return strings.Join(request, "\n")
 }
 
-func dailyLogFile() string {
+func dailyLogFile(log *logrus.Logger) string {
 
 	var lastFileDate string
 
@@ -101,7 +104,7 @@ func dailyLogFile() string {
 
 	files, err := ioutil.ReadDir("log/")
 	if err != nil {
-		log.Fatal(err)
+		os.MkdirAll("log", os.ModePerm)
 	}
 
 	n := len(files)
@@ -120,45 +123,55 @@ func dailyLogFile() string {
 	return files[n-1].Name()
 }
 
-func logginToFile(logInfo *LogInfo) {
+func logginToFile(logInfo *LogInfo, log *logrus.Logger) {
 
-	logPath := dailyLogFile()
+	logPath := dailyLogFile(log)
+	log.Out = os.Stdout
+	log.Formatter = new(logrus.JSONFormatter)
 
 	lf, err := os.OpenFile("log/"+logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
-
-	if err != nil {
-		log.Fatal("OpenLogfile: os.OpenFile:", err)
-	}
 	defer lf.Close()
+	if err == nil {
+		log.Out = lf
+	} else {
+		log.Info("Failed to log to file, using default stderr")
+	}
 
-	log.SetOutput(lf)
-	log.Println("\nrequest body:\n", logInfo.Req, "\nquery string:\n", logInfo.QueryString, "\nresponse:\n", logInfo.Resp, "\n")
+	log.WithFields(logrus.Fields{
+		"REQUEST_BODY": logInfo.Req,
+		"QUERY_STRING": logInfo.QueryString,
+		"RESPONSE":     logInfo.Info,
+		"ERROR":        logInfo.Error,
+	}).Info()
 }
 
-func ipInfo(ipAddr string, data *libgeo.GeoIP) *ClientInfo {
+func ipInfo(ipAddr string, data *libgeo.GeoIP) (*ClientInfo, *ErrorInfo) {
 
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	loc := data.GetLocationByIP(ipAddr)
 	if loc == nil {
-		return nil
+		errInfo := &ErrorInfo{Ip: ipAddr, Error: "geo info for ip not found"}
+		return nil, errInfo
 	}
 	clientInfo := &ClientInfo{Ip: ipAddr, Country: loc.CountryName, CountryCode: loc.CountryCode,
 		City: loc.City, Region: loc.Region, PostalCode: loc.PostalCode,
 		Latitude: loc.Latitude, Longitude: loc.Longitude}
 
-	return clientInfo
+	return clientInfo, nil
 }
 
 func main() {
 
 	dbFile := "GeoLiteCity.dat"
 	data, err := libgeo.Load(dbFile)
-	checkError(err)
+	var log = logrus.New()
+	checkError(err, log)
 
 	m := martini.Classic()
 	m.Map(data)
+	m.Map(log)
 
 	m.Get("/", getIP)
 	m.Run()
