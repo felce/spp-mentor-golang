@@ -74,7 +74,7 @@ func createAndOpenNewFile() {
 
 }
 
-func getNameOfLOgsFileAfterServerStart() string {
+func getNameOfLogsFileBeforeServerStart() string {
 
 	files, err := ioutil.ReadDir("log/")
 	if err != nil {
@@ -198,7 +198,7 @@ func main() {
 	}()
 
 	updCurrentDate()
-	currentLogFileName = getNameOfLOgsFileAfterServerStart()
+	currentLogFileName = getNameOfLogsFileBeforeServerStart()
 
 	dbFile := "GeoLiteCity.dat"
 	data, err := libgeo.Load(dbFile)
