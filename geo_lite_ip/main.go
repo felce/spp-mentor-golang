@@ -17,7 +17,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var mutex sync.Mutex
+var (
+	FileWithLogs       *os.File
+	CurrentDate        string
+	NumberOfFiles      int
+	NewNumberOfFile    string
+	currentLogFileName string
+	mutex              sync.Mutex
+)
 
 type ErrorInfo struct {
 	Ip    string
@@ -42,15 +49,60 @@ type LogInfo struct {
 	Error       *ErrorInfo
 }
 
-func checkError(err error, log *logrus.Logger) {
+func updCurrentDate() {
 
+	CurrentDate = time.Now().Format("02_01_2006")
+}
+
+func updNewNumberOfFile() {
+
+	NewNumberOfFile = fmt.Sprintf("%04s", strconv.Itoa(NumberOfFiles))
+}
+
+func openLogFile(fileName string) {
+
+	FileWithLogs, _ = os.OpenFile("log/"+fileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+}
+
+func createAndOpenNewFile() {
+
+	FileWithLogs.Close()
+	NumberOfFiles++
+	updNewNumberOfFile()
+	fileName := NewNumberOfFile + "_" + CurrentDate + ".log"
+	openLogFile(fileName)
+
+}
+
+func getNameOfLOgsFileAfterServerStart() string {
+
+	files, err := ioutil.ReadDir("log/")
 	if err != nil {
-		log.Fatal(err)
+
+		os.MkdirAll("log", os.ModePerm)
 	}
+
+	NumberOfFiles = len(files)
+
+	if NumberOfFiles == 0 {
+
+		return "0001_" + CurrentDate + ".log"
+	}
+	lastFileDate := files[NumberOfFiles-1].Name()[5:15]
+
+	if CurrentDate != lastFileDate {
+
+		NumberOfFiles++
+		updNewNumberOfFile()
+		return NewNumberOfFile + "_" + CurrentDate + ".log"
+	}
+
+	return files[NumberOfFiles-1].Name()
 }
 
 func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, log *logrus.Logger) {
 
+	updCurrentDate()
 	w.Header().Set("Content-Type", "application/json")
 
 	qs := r.URL.Query()
@@ -59,9 +111,11 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, log *logr
 
 	ip = qs.Get("ip")
 	if ip == "" {
+
 		if ipProxy := r.Header.Get("X-FORWARDED-FOR"); len(ipProxy) > 0 {
 			ip = ipProxy
 		} else {
+
 			ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 		}
 	}
@@ -74,7 +128,6 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, log *logr
 	} else {
 
 		w.WriteHeader(http.StatusNotFound)
-
 		infoJson, _ = json.MarshalIndent(errInfo, "", "\t")
 	}
 	w.Write(infoJson)
@@ -82,10 +135,11 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, log *logr
 	requestBody := requestInfo(r)
 	logInfo := &LogInfo{Req: requestBody, QueryString: qs, Info: clientInfo, Error: errInfo}
 
-	logginToFile(logInfo, log)
+	writeLogToFile(logInfo, log)
 }
 
 func requestInfo(r *http.Request) string {
+
 	var request []string
 	for name, headers := range r.Header {
 		name = strings.ToLower(name)
@@ -96,46 +150,10 @@ func requestInfo(r *http.Request) string {
 	return strings.Join(request, "\n")
 }
 
-func dailyLogFile(log *logrus.Logger) string {
+func writeLogToFile(logInfo *LogInfo, log *logrus.Logger) {
 
-	var lastFileDate string
-
-	currentDate := time.Now().Format("02_01_2006")
-
-	files, err := ioutil.ReadDir("log/")
-	if err != nil {
-		os.MkdirAll("log", os.ModePerm)
-	}
-
-	n := len(files)
-
-	if n == 0 {
-		return "0001_" + currentDate + ".log"
-	}
-
-	lastFileDate = files[n-1].Name()[5:15]
-
-	if currentDate != lastFileDate {
-		newNumb := fmt.Sprintf("%04s", strconv.Itoa(n+1))
-		return newNumb + "_" + currentDate + ".log"
-	}
-
-	return files[n-1].Name()
-}
-
-func logginToFile(logInfo *LogInfo, log *logrus.Logger) {
-
-	logPath := dailyLogFile(log)
-	log.Out = os.Stdout
 	log.Formatter = new(logrus.JSONFormatter)
-
-	lf, err := os.OpenFile("log/"+logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
-	defer lf.Close()
-	if err == nil {
-		log.Out = lf
-	} else {
-		log.Info("Failed to log to file, using default stderr")
-	}
+	log.Out = FileWithLogs
 
 	log.WithFields(logrus.Fields{
 		"REQUEST_BODY": logInfo.Req,
@@ -163,11 +181,32 @@ func ipInfo(ipAddr string, data *libgeo.GeoIP) (*ClientInfo, *ErrorInfo) {
 }
 
 func main() {
+	go func() {
+
+		dateNow := time.Now().Format("02_01_2006")
+		for {
+			newDate := time.Now().Format("02_01_2006")
+
+			if dateNow != newDate {
+
+				dateNow = newDate
+				updCurrentDate()
+				createAndOpenNewFile()
+			}
+			time.Sleep(time.Minute)
+		}
+	}()
+
+	updCurrentDate()
+	currentLogFileName = getNameOfLOgsFileAfterServerStart()
 
 	dbFile := "GeoLiteCity.dat"
 	data, err := libgeo.Load(dbFile)
 	var log = logrus.New()
-	checkError(err, log)
+	if err != nil {
+		log.Fatal(err)
+	}
+	openLogFile(currentLogFileName)
 
 	m := martini.Classic()
 	m.Map(data)
