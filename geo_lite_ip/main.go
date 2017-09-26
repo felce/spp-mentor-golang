@@ -3,28 +3,20 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
+
+	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/go-martini/martini"
 	"github.com/nranchev/go-libGeoIP"
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	FileWithLogs       *os.File
-	CurrentDate        string
-	NumberOfFiles      int
-	NewNumberOfFile    string
-	currentLogFileName string
-	mutex              sync.Mutex
-)
+var mutex sync.Mutex
 
 type ErrorInfo struct {
 	Ip    string
@@ -49,60 +41,8 @@ type LogInfo struct {
 	Error       *ErrorInfo
 }
 
-func updCurrentDate() {
-
-	CurrentDate = time.Now().Format("02_01_2006")
-}
-
-func updNewNumberOfFile() {
-
-	NewNumberOfFile = fmt.Sprintf("%04s", strconv.Itoa(NumberOfFiles))
-}
-
-func openLogFile(fileName string) {
-
-	FileWithLogs, _ = os.OpenFile("log/"+fileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
-}
-
-func createAndOpenNewFile() {
-
-	FileWithLogs.Close()
-	NumberOfFiles++
-	updNewNumberOfFile()
-	fileName := NewNumberOfFile + "_" + CurrentDate + ".log"
-	openLogFile(fileName)
-
-}
-
-func getNameOfLogsFileBeforeServerStart() string {
-
-	files, err := ioutil.ReadDir("log/")
-	if err != nil {
-
-		os.MkdirAll("log", os.ModePerm)
-	}
-
-	NumberOfFiles = len(files)
-
-	if NumberOfFiles == 0 {
-
-		return "0001_" + CurrentDate + ".log"
-	}
-	lastFileDate := files[NumberOfFiles-1].Name()[5:15]
-
-	if CurrentDate != lastFileDate {
-
-		NumberOfFiles++
-		updNewNumberOfFile()
-		return NewNumberOfFile + "_" + CurrentDate + ".log"
-	}
-
-	return files[NumberOfFiles-1].Name()
-}
-
 func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, log *logrus.Logger) {
 
-	updCurrentDate()
 	w.Header().Set("Content-Type", "application/json")
 
 	qs := r.URL.Query()
@@ -132,13 +72,13 @@ func getIP(w http.ResponseWriter, r *http.Request, data *libgeo.GeoIP, log *logr
 	}
 	w.Write(infoJson)
 
-	requestBody := requestInfo(r)
+	requestBody := getRequestInfo(r)
 	logInfo := &LogInfo{Req: requestBody, QueryString: qs, Info: clientInfo, Error: errInfo}
 
 	writeLogToFile(logInfo, log)
 }
 
-func requestInfo(r *http.Request) string {
+func getRequestInfo(r *http.Request) string {
 
 	var request []string
 	for name, headers := range r.Header {
@@ -153,7 +93,6 @@ func requestInfo(r *http.Request) string {
 func writeLogToFile(logInfo *LogInfo, log *logrus.Logger) {
 
 	log.Formatter = new(logrus.JSONFormatter)
-	log.Out = FileWithLogs
 
 	log.WithFields(logrus.Fields{
 		"REQUEST_BODY": logInfo.Req,
@@ -181,32 +120,21 @@ func ipInfo(ipAddr string, data *libgeo.GeoIP) (*ClientInfo, *ErrorInfo) {
 }
 
 func main() {
-	go func() {
 
-		dateNow := time.Now().Format("02_01_2006")
-		for {
-			newDate := time.Now().Format("02_01_2006")
-
-			if dateNow != newDate {
-
-				dateNow = newDate
-				updCurrentDate()
-				createAndOpenNewFile()
-			}
-			time.Sleep(time.Minute)
-		}
-	}()
-
-	updCurrentDate()
-	currentLogFileName = getNameOfLogsFileBeforeServerStart()
-
+	os.MkdirAll("log", os.ModePerm)
 	dbFile := "GeoLiteCity.dat"
 	data, err := libgeo.Load(dbFile)
 	var log = logrus.New()
 	if err != nil {
 		log.Fatal(err)
 	}
-	openLogFile(currentLogFileName)
+	log.Out = &lumberjack.Logger{
+		Filename:   "log/logs.log",
+		MaxSize:    500,
+		MaxBackups: 3,
+		MaxAge:     1,
+		Compress:   true,
+	}
 
 	m := martini.Classic()
 	m.Map(data)
