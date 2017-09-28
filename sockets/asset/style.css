@@ -1,0 +1,21 @@
+body {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  
+  #field {
+    position: relative;
+    background-color: cornflowerblue;
+    border: 1px solid black;
+    width: 500px;
+    height: 500px;
+    margin-bottom: 20px;
+  }
+  
+  .anotherUsersCursor {
+    position: absolute;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+  }
